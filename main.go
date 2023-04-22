@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -31,9 +32,9 @@ type Controller struct {
 	msgpackConverter *msgpack.Converter
 }
 
-func NewController() (*Controller, error) {
+func NewController(port int32) (*Controller, error) {
 	ctrl := &Controller{
-		port:             3000,
+		port:             port32,
 		xmlConverter:     &XML.Converter{},
 		nativeConverter:  &native.Converter{},
 		jsonConverter:    &json.Converter{},
@@ -155,7 +156,12 @@ func (c *Controller) Listen() error {
 }
 
 func main() {
-	controller, err := NewController()
+	port := os.Args[1]
+	intPort, err := strconv.Atoi(port)
+	if err != nil {
+		panic(err)
+	}
+	controller, err := NewController(int32(intPort))
 	if err != nil {
 		panic(err)
 	}
@@ -172,10 +178,10 @@ func main() {
 	}()
 
 	go func() {
-		if len(os.Args) == 1 {
+		if len(os.Args) < 3 {
 			fmt.Println(1233122)
 		}
-		format := os.Args[1]
+		format := os.Args[2]
 		result, err := controller.ProcessRequest([]byte(format))
 		if err != nil {
 			panic(fmt.Errorf("failed to get result from format %q: %v", format, err))
