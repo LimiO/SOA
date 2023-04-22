@@ -2,20 +2,20 @@ services:
   xml:
     build:
       context: .
-    command: ["xml"]
+    command: [ "3000", "xml" ]
     ports:
       - 3000:3000
   native:
     build:
       context: .
-    command: [ "native" ]
+    command: [ "3001", "native" ]
     ports:
-      - 3000:3000
+      - 3001:3001
 
   proto:
     build:
       context: .
-    command: [ "proto" ]
+    command: [ "3002", "proto" ]
     ports:
-      - 3000:3000
+      - 3002:3002
 

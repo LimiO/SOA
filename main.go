@@ -34,7 +34,7 @@ type Controller struct {
 
 func NewController(port int32) (*Controller, error) {
 	ctrl := &Controller{
-		port:             port32,
+		port:             port,
 		xmlConverter:     &XML.Converter{},
 		nativeConverter:  &native.Converter{},
 		jsonConverter:    &json.Converter{},
