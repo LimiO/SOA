@@ -1,12 +1,12 @@
 FROM golang:1.18-alpine
 
-WORKDIR /pracrice/converters/
-COPY go.* .
+WORKDIR /practice/converters/
+COPY go.* /practice/converters/
 
 RUN go mod download -x
 
-COPY * .
+ADD converters /practice/converters/converters
+COPY * ./
+COPY converters/* ./
 
-RUN go build .
-
-ENTRYPOINT ["./main"]
+ENTRYPOINT ["go", "run", "main.go"]

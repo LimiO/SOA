@@ -6,6 +6,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	"serialization_tester/converters"
@@ -158,22 +159,29 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+
 	go func() {
 		err := controller.Listen()
 		if err != nil {
 			panic(err)
 		}
+		wg.Done()
 	}()
 
 	go func() {
 		if len(os.Args) == 1 {
-			return
+			fmt.Println(1233122)
 		}
 		format := os.Args[1]
 		result, err := controller.ProcessRequest([]byte(format))
 		if err != nil {
 			panic(fmt.Errorf("failed to get result from format %q: %v", format, err))
 		}
+		wg.Done()
 		fmt.Println(result)
 	}()
+	wg.Wait()
 }
