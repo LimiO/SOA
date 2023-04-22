@@ -1,0 +1,21 @@
+services:
+  xml:
+    build:
+      context: .
+    command: ["xml"]
+    ports:
+      - 3000:3000
+  native:
+    build:
+      context: .
+    command: [ "native" ]
+    ports:
+      - 3000:3000
+
+  proto:
+    build:
+      context: .
+    command: [ "proto" ]
+    ports:
+      - 3000:3000
+
