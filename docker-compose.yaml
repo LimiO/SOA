@@ -1,21 +1,23 @@
 services:
+  proxy:
+    build:
+      context: .
+    command: [ "2000", "proxy" ]
+    ports:
+      - 2000:2000
+
   xml:
     build:
       context: .
     command: [ "3000", "xml" ]
-    ports:
-      - 3000:3000
+
   native:
     build:
       context: .
     command: [ "3001", "native" ]
-    ports:
-      - 3001:3001
 
   proto:
     build:
       context: .
     command: [ "3002", "proto" ]
-    ports:
-      - 3002:3002
 

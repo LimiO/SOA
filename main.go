@@ -4,133 +4,73 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"reflect"
 	"strconv"
-	"strings"
 	"sync"
-	"time"
 
 	"serialization_tester/converters"
 	"serialization_tester/converters/XML"
 	"serialization_tester/converters/avro"
 	"serialization_tester/converters/json"
-	"serialization_tester/converters/msgpack"
-	"serialization_tester/converters/native"
 	"serialization_tester/converters/proto"
-	"serialization_tester/converters/yaml"
+	"serialization_tester/proxy"
 )
 
-type Controller struct {
-	port int32
-
-	xmlConverter     *XML.Converter
-	nativeConverter  *native.Converter
-	jsonConverter    *json.Converter
-	protoConverter   *proto.Converter
-	avroConverter    *avro.Converter
-	yamlConverter    *yaml.Converter
-	msgpackConverter *msgpack.Converter
+type Server interface {
+	ProcessRequest([]byte) (string, error)
 }
 
-func NewController(port int32) (*Controller, error) {
-	ctrl := &Controller{
-		port:             port,
-		xmlConverter:     &XML.Converter{},
-		nativeConverter:  &native.Converter{},
-		jsonConverter:    &json.Converter{},
-		protoConverter:   &proto.Converter{},
-		avroConverter:    &avro.Converter{},
-		yamlConverter:    &yaml.Converter{},
-		msgpackConverter: &msgpack.Converter{},
+type MutlicastServer interface {
+	ListenMulticastGroup() error
+}
+
+type Controller struct {
+	groupAddr string
+	port      int32
+	server    Server
+}
+
+func NewController(port int32, serverType string) (*Controller, error) {
+	groupAddr := os.Getenv("GROUP_ADDR")
+	if groupAddr == "" {
+		return nil, fmt.Errorf("GROUP_ADDR cannot be empty")
 	}
-	err := ctrl.avroConverter.SetSchema()
-	if err != nil {
-		return nil, fmt.Errorf("failed to set schema: %v", err)
+
+	var server Server
+	switch serverType {
+	case "proxy":
+		server = proxy.Server{
+			Port: port,
+			ConvertersAddrs: map[string]string{
+				"xml": ":3000",
+				//"proto": ":3001",
+				//"json":  ":3002",
+			},
+			MulticastAddr: groupAddr,
+		}
+	case "xml":
+		server = converters.NewServer(3000, "xml", groupAddr, &XML.Converter{})
+	case "proto":
+		server = converters.NewServer(3001, "proto", groupAddr, &proto.Converter{})
+	case "json":
+		server = converters.NewServer(3002, "json", groupAddr, &json.Converter{})
+	case "avro":
+		conv := &avro.Converter{}
+		err := conv.SetSchema()
+		if err != nil {
+			return nil, fmt.Errorf("failed to set schema: %v", err)
+		}
+		server = converters.NewServer(3003, "proxy", groupAddr, conv)
+	}
+
+	ctrl := &Controller{
+		port:      port,
+		server:    server,
+		groupAddr: groupAddr,
 	}
 	return ctrl, nil
 }
 
-func (c *Controller) ProcessConverter(format string, converter converters.Converter) (string, error) {
-	person := &converters.Person{
-		Name: "Albert",
-		Age:  50,
-		Siblings: map[string]string{
-			"Ameli": "shaml",
-			"Azali": "shaml",
-		},
-		Cars: []string{
-			"abc", "def", "dgx",
-		},
-	}
-	structSize := reflect.TypeOf(person).Size()
-
-	var totalTimeSerialize int64
-	var totalTimeDeserialize int64
-
-	{
-		// fictive serialize and deserialize to init all things in root of library
-		bytes, _ := converter.Serialize(person)
-		converter.Deserialize(bytes)
-	}
-
-	var attempts int64 = 1000
-	for i := 0; i < int(attempts); i++ {
-		start := time.Now()
-		bytes, err := converter.Serialize(person)
-		totalTimeSerialize += time.Since(start).Microseconds()
-		if err != nil {
-			return "", fmt.Errorf("failed to serialize string: %v", err)
-		}
-
-		start = time.Now()
-		_, err = converter.Deserialize(bytes)
-		totalTimeDeserialize += time.Since(start).Microseconds()
-		if err != nil {
-			return "", fmt.Errorf("failed to deserialize string: %v", err)
-		}
-	}
-	return fmt.Sprintf(
-		"%s - %d - %dmcs - %dmcs\n",
-		format, structSize, totalTimeSerialize/attempts, totalTimeDeserialize/attempts), nil
-}
-
-func (c *Controller) ProcessRequest(buf []byte) (string, error) {
-	var conv converters.Converter
-	convertersMap := map[string]converters.Converter{
-		"xml":     c.xmlConverter,
-		"native":  c.nativeConverter,
-		"json":    c.jsonConverter,
-		"proto":   c.protoConverter,
-		"avro":    c.avroConverter,
-		"yaml":    c.yamlConverter,
-		"msgpack": c.msgpackConverter,
-	}
-	format := strings.Trim(string(buf), "\n")
-
-	if format == "all" {
-		var result []string
-		for format = range convertersMap {
-			formatResult, err := c.ProcessRequest([]byte(format))
-			if err != nil {
-				return "", fmt.Errorf("failed to process format %q: %v", format, err)
-			}
-			result = append(result, formatResult)
-		}
-		return strings.Join(result, ""), nil
-	}
-
-	conv, ok := convertersMap[format]
-	if !ok {
-		return "", fmt.Errorf("unknown format: %s", format)
-	}
-	res, err := c.ProcessConverter(format, conv)
-	if err != nil {
-		return "", fmt.Errorf("failed to process converter %q: %v", format, err)
-	}
-	return res, nil
-}
-
-func (c *Controller) Listen() error {
+func (c Controller) Listen() error {
 	conn, err := net.ListenPacket("udp", fmt.Sprintf(":%d", c.port))
 	if err != nil {
 		return fmt.Errorf("failed to make listen packet: %v", err)
@@ -143,9 +83,10 @@ func (c *Controller) Listen() error {
 			fmt.Printf("failed to read data from connection: %v", err)
 			continue
 		}
-		res, err := c.ProcessRequest(buf[:n])
+		res, err := c.server.ProcessRequest(buf[:n])
 		if err != nil {
 			fmt.Printf("failed to process request: %v", err)
+			_, err = conn.WriteTo([]byte(err.Error()), addr)
 			continue
 		}
 		to, err := conn.WriteTo([]byte(res), addr)
@@ -156,12 +97,15 @@ func (c *Controller) Listen() error {
 }
 
 func main() {
+	if len(os.Args) != 3 {
+		panic(fmt.Errorf("not enought args"))
+	}
 	port := os.Args[1]
 	intPort, err := strconv.Atoi(port)
 	if err != nil {
 		panic(err)
 	}
-	controller, err := NewController(int32(intPort))
+	controller, err := NewController(int32(intPort), os.Args[2])
 	if err != nil {
 		panic(err)
 	}
@@ -170,24 +114,25 @@ func main() {
 	wg.Add(2)
 
 	go func() {
-		err := controller.Listen()
+		defer wg.Done()
+		err = controller.Listen()
 		if err != nil {
 			panic(err)
 		}
-		wg.Done()
 	}()
 
 	go func() {
-		if len(os.Args) < 3 {
-			fmt.Println(1233122)
+		defer wg.Done()
+		obj, ok := controller.server.(MutlicastServer)
+		if !ok {
+			fmt.Println("SKIP")
+			return
 		}
-		format := os.Args[2]
-		result, err := controller.ProcessRequest([]byte(format))
+		err = obj.ListenMulticastGroup()
 		if err != nil {
-			panic(fmt.Errorf("failed to get result from format %q: %v", format, err))
+			panic(err)
 		}
-		wg.Done()
-		fmt.Println(result)
 	}()
+
 	wg.Wait()
 }
