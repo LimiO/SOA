@@ -12,6 +12,9 @@ import (
 	"serialization_tester/converters/avro"
 	"serialization_tester/converters/json"
 	"serialization_tester/converters/proto"
+	"serialization_tester/converters/msgpack"
+	"serialization_tester/converters/native"
+	"serialization_tester/converters/yaml"
 	"serialization_tester/proxy"
 )
 
@@ -26,6 +29,7 @@ type MutlicastServer interface {
 type Controller struct {
 	groupAddr string
 	port      int32
+	host      string
 	server    Server
 }
 
@@ -35,34 +39,54 @@ func NewController(port int32, serverType string) (*Controller, error) {
 		return nil, fmt.Errorf("GROUP_ADDR cannot be empty")
 	}
 
+	var host string
 	var server Server
 	switch serverType {
 	case "proxy":
 		server = proxy.Server{
 			Port: port,
 			ConvertersAddrs: map[string]string{
-				"xml": ":3000",
-				//"proto": ":3001",
-				//"json":  ":3002",
+				"xml": "xml:3000",
+				"native": "native:3001",
+				"proto": "proto:3002",
+				"json":  "json:3003",
+				"avro":  "avro:3004",
+				"yaml":  "yaml:3005",
+				"msgpack":  "msgpack:3006",
 			},
 			MulticastAddr: groupAddr,
+			Result: make(chan string, 7),
 		}
 	case "xml":
+		host = "xml"
 		server = converters.NewServer(3000, "xml", groupAddr, &XML.Converter{})
+	case "native":
+		host = "native"
+		server = converters.NewServer(3001, "native", groupAddr, &native.Converter{})
 	case "proto":
-		server = converters.NewServer(3001, "proto", groupAddr, &proto.Converter{})
+		host = "proto"
+		server = converters.NewServer(3002, "proto", groupAddr, &proto.Converter{})
 	case "json":
-		server = converters.NewServer(3002, "json", groupAddr, &json.Converter{})
+		host = "json"
+		server = converters.NewServer(3003, "json", groupAddr, &json.Converter{})
 	case "avro":
+		host = "avro"
 		conv := &avro.Converter{}
 		err := conv.SetSchema()
 		if err != nil {
 			return nil, fmt.Errorf("failed to set schema: %v", err)
 		}
-		server = converters.NewServer(3003, "proxy", groupAddr, conv)
+		server = converters.NewServer(3004, "avro", groupAddr, conv)
+	case "yaml":
+		host = "yaml"
+		server = converters.NewServer(3005, "yaml", groupAddr, &yaml.Converter{})
+	case "msgpack":
+		host = "msgpack"
+		server = converters.NewServer(3006, "msgpack", groupAddr, &msgpack.Converter{})
 	}
 
 	ctrl := &Controller{
+		host:      host,
 		port:      port,
 		server:    server,
 		groupAddr: groupAddr,
@@ -71,7 +95,7 @@ func NewController(port int32, serverType string) (*Controller, error) {
 }
 
 func (c Controller) Listen() error {
-	conn, err := net.ListenPacket("udp", fmt.Sprintf(":%d", c.port))
+	conn, err := net.ListenPacket("udp", fmt.Sprintf("%s:%d", c.host, c.port))
 	if err != nil {
 		return fmt.Errorf("failed to make listen packet: %v", err)
 	}

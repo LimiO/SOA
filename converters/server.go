@@ -24,12 +24,29 @@ func NewServer(port int32, format string, multicastAddr string, converter Conver
 	}
 }
 
+func (s Server) SendToGroup(data string) error {
+	maddr, err := net.ResolveUDPAddr("udp", s.MulticastAddr)
+	if err != nil {
+		return fmt.Errorf("failed to resolve udp addr: %v", err)
+	}
+	c, err := net.DialUDP("udp", nil, maddr)
+
+	if err != nil {
+		return fmt.Errorf("failed to set listen conn: %v", err)
+	}
+	defer c.Close()
+	_, err = c.Write([]byte(data))
+	if err != nil {
+		return fmt.Errorf("failed to write data: %v", err)
+	}
+	return nil
+}
+
 func (s Server) ListenMulticastGroup() error {
 	maddr, err := net.ResolveUDPAddr("udp", s.MulticastAddr)
 	if err != nil {
 		return fmt.Errorf("failed to resolve udp addr: %v", err)
 	}
-	fmt.Println(maddr)
 	conn, err := net.ListenMulticastUDP("udp", nil, maddr)
 	if err != nil {
 		return fmt.Errorf("failed to listen multicast udp: %v", err)
@@ -48,9 +65,12 @@ func (s Server) ListenMulticastGroup() error {
 			fmt.Printf("failed to process request: %v", err)
 			continue
 		}
-		_, err = conn.Write([]byte(data))
+		if data == "" {
+			continue
+		}
+		err = s.SendToGroup(data)
 		if err != nil {
-			fmt.Printf("failed to write data: %v", err)
+			fmt.Printf("failed to send to group: %v", err)
 		}
 	}
 
@@ -103,7 +123,7 @@ func (s Server) ProcessConverter(format string, converter Converter) (string, er
 func (s Server) ProcessRequest(buf []byte) (string, error) {
 	req := strings.Trim(string(buf), "\n")
 	if req != "get_info" {
-		return "", fmt.Errorf("unknown request: %s", req)
+		return "", nil
 	}
 
 	res, err := s.ProcessConverter(s.Format, s.converter)

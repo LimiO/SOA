@@ -4,20 +4,47 @@ services:
       context: .
     command: [ "2000", "proxy" ]
     ports:
-      - 2000:2000
+      - "2000:2000/udp"
 
   xml:
     build:
       context: .
+    hostname: "xml"
     command: [ "3000", "xml" ]
 
   native:
     build:
       context: .
+    hostname: "native"
     command: [ "3001", "native" ]
 
   proto:
     build:
       context: .
+    hostname: "proto"
     command: [ "3002", "proto" ]
+
+  json:
+    build:
+      context: .
+    hostname: "json"
+    command: [ "3003", "json" ]
+  
+  avro:
+    build:
+      context: .
+    hostname: "avro"
+    command: [ "3004", "avro" ]
+
+  yaml:
+    build:
+      context: .
+    hostname: "yaml"
+    command: [ "3005", "yaml" ]
+
+  msgpack:
+    build:
+      context: .
+    hostname: "msgpack"
+    command: [ "3006", "msgpack" ]
 

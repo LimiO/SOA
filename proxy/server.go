@@ -11,6 +11,35 @@ type Server struct {
 	Port            int32
 	MulticastAddr   string
 	ConvertersAddrs map[string]string
+	Result          chan string
+}
+
+func (s Server) ListenMulticastGroup() error {
+	maddr, err := net.ResolveUDPAddr("udp", s.MulticastAddr)
+	if err != nil {
+		return fmt.Errorf("failed to resolve udp addr: %v", err)
+	}
+	conn, err := net.ListenMulticastUDP("udp", nil, maddr)
+	if err != nil {
+		return fmt.Errorf("failed to listen multicast udp: %v", err)
+	}
+	defer conn.Close()
+
+	for {
+		for range s.ConvertersAddrs {
+			buf := make([]byte, 1000)
+			n, _, err := conn.ReadFromUDP(buf)
+			if err != nil {
+				return fmt.Errorf("failed to read from UDP conn: %v", err)
+			}
+			if string(buf[:n]) == "get_info" {
+				continue
+			}
+			s.Result <- string(buf[:n])
+		}
+	}
+	
+	return nil
 }
 
 func (s Server) ProcessMulticast() (string, error) {
@@ -19,26 +48,24 @@ func (s Server) ProcessMulticast() (string, error) {
 		return "", fmt.Errorf("failed to resolve udp addr: %v", err)
 	}
 
-	conn, err := net.ListenMulticastUDP("udp", nil, maddr)
+	conn, err := net.DialUDP("udp", nil, maddr)
+
 	if err != nil {
 		return "", fmt.Errorf("failed to set listen conn: %v", err)
 	}
 	defer conn.Close()
 
-	_, err = conn.WriteToUDP([]byte("get_info"), maddr)
+	_, err = conn.Write([]byte("get_info"))
 	if err != nil {
 		return "", fmt.Errorf("failed to write to addr: %v", err)
 	}
-
+	
 	var result []string
 	for range s.ConvertersAddrs {
-		buf := make([]byte, 1000)
-		n, _, err := conn.ReadFromUDP(buf)
-		if err != nil {
-			return "", fmt.Errorf("failed to read from UDP conn: %v", err)
-		}
-		result = append(result, string(buf[:n]))
+		str := <- s.Result
+		result = append(result, str)
 	}
+
 	return strings.Join(result, ""), nil
 }
 
