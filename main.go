@@ -100,6 +100,7 @@ func (c Controller) Listen() error {
 		return fmt.Errorf("failed to make listen packet: %v", err)
 	}
 	defer conn.Close()
+
 	for {
 		buf := make([]byte, 1024)
 		n, addr, err := conn.ReadFrom(buf)
@@ -107,10 +108,11 @@ func (c Controller) Listen() error {
 			fmt.Printf("failed to read data from connection: %v", err)
 			continue
 		}
+
 		res, err := c.server.ProcessRequest(buf[:n])
 		if err != nil {
 			fmt.Printf("failed to process request: %v", err)
-			_, err = conn.WriteTo([]byte(err.Error()), addr)
+			conn.WriteTo([]byte(err.Error()), addr)
 			continue
 		}
 		to, err := conn.WriteTo([]byte(res), addr)
@@ -149,7 +151,6 @@ func main() {
 		defer wg.Done()
 		obj, ok := controller.server.(MutlicastServer)
 		if !ok {
-			fmt.Println("SKIP")
 			return
 		}
 		err = obj.ListenMulticastGroup()

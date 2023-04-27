@@ -49,7 +49,6 @@ func (s Server) ProcessMulticast() (string, error) {
 	}
 
 	conn, err := net.DialUDP("udp", nil, maddr)
-
 	if err != nil {
 		return "", fmt.Errorf("failed to set listen conn: %v", err)
 	}
@@ -75,6 +74,7 @@ func (s Server) ProcessRequest(request []byte) (string, error) {
 	if req == "all" {
 		return s.ProcessMulticast()
 	}
+
 	addr, ok := s.ConvertersAddrs[req]
 	if !ok {
 		return "", fmt.Errorf("failed to get converter addr: %s", req)
@@ -87,12 +87,9 @@ func (s Server) ProcessRequest(request []byte) (string, error) {
 
 	_, err = fmt.Fprintf(conn, "get_info")
 	if err != nil {
-		return "", err
-	}
-
-	if err != nil {
 		return "", fmt.Errorf("failed to write data to addr %q: %v", addr, err)
 	}
+
 	buf := make([]byte, 1024)
 	n, err := bufio.NewReader(conn).Read(buf)
 	if err != nil {

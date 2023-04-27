@@ -83,9 +83,13 @@ func (s Server) ProcessConverter(format string, converter Converter) (string, er
 		Siblings: map[string]string{
 			"Ameli": "shaml",
 			"Azali": "shaml",
+			"abc": "def",
+			"dddd": "2222",
+			"bbbb": "44444",
+			"Azmfd": "342423423",
 		},
 		Cars: []string{
-			"abc", "def", "dgx",
+			"abc", "def", "dgx", "fdsafasd", "1231", "====", "----", "+++++", "________", "1111111",
 		},
 	}
 	structSize := reflect.TypeOf(person).Size()
