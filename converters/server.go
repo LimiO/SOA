@@ -3,7 +3,6 @@ package converters
 import (
 	"fmt"
 	"net"
-	"reflect"
 	"strings"
 	"time"
 )
@@ -92,10 +91,11 @@ func (s Server) ProcessConverter(format string, converter Converter) (string, er
 			"abc", "def", "dgx", "fdsafasd", "1231", "====", "----", "+++++", "________", "1111111",
 		},
 	}
-	structSize := reflect.TypeOf(person).Size()
 
 	var totalTimeSerialize int64
 	var totalTimeDeserialize int64
+	var totalStructSize int
+
 
 	{
 		// fictive serialize and deserialize to init all things in root of library
@@ -111,6 +111,7 @@ func (s Server) ProcessConverter(format string, converter Converter) (string, er
 		if err != nil {
 			return "", fmt.Errorf("failed to serialize string: %v", err)
 		}
+		totalStructSize += len(bytes)
 
 		start = time.Now()
 		_, err = converter.Deserialize(bytes)
@@ -121,7 +122,7 @@ func (s Server) ProcessConverter(format string, converter Converter) (string, er
 	}
 	return fmt.Sprintf(
 		"%s - %d - %dmcs - %dmcs\n",
-		format, structSize, totalTimeSerialize/attempts, totalTimeDeserialize/attempts), nil
+		format, totalStructSize/int(attempts), totalTimeSerialize/attempts, totalTimeDeserialize/attempts), nil
 }
 
 func (s Server) ProcessRequest(buf []byte) (string, error) {
